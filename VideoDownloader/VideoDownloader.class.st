@@ -10,6 +10,15 @@ Class {
 }
 
 { #category : #'as yet unclassified' }
+VideoDownloader class >> on: inputFile to: outputFile [
+
+	^ self new
+		  inputFile: inputFile;
+		  outputFile: outputFile;
+		  run
+]
+
+{ #category : #'as yet unclassified' }
 VideoDownloader class >> withInteraction [
 
 	| from to |
@@ -37,6 +46,60 @@ VideoDownloader >> downloadOne: anAssociation [
 	LibC runCommand:
 		'FFMPEG\youtube-dl.exe --retries "infinite" -o "'
 		, (outputFile / name) pathString , '.%(ext)s" ' , anAssociation key
+]
+
+{ #category : #'as yet unclassified' }
+VideoDownloader >> findMetaDataForPlayList: aString [ 
+	self shouldBeImplemented.
+]
+
+{ #category : #'as yet unclassified' }
+VideoDownloader >> findMetaDataForPlayList: playListEntry in: entries [
+
+	| urlsUuid metaData string data |
+	urlsUuid := (playListEntry asZnUrl segments last substrings: '.')
+		            first.
+	metaData := (entries select: [ :e | 
+		             ((e at: 'response') at: 'content')
+			             at: 'text'
+			             ifPresent: [ :f | f includesSubstring: urlsUuid  ]
+			             ifAbsent: [ false ] ]) reject: [ :g | 
+		            ((g at: 'request') at: 'url') endsWith: '.m3u8' ].
+
+	string := ((metaData first at: 'response') at: 'content') at: 'text'.
+	data := (NeoJSONReader fromString:
+		         '{' , ((string copyAfter: ${) copyUpToLast: $}) , '}') at:
+		        'media'.
+	^Dictionary new
+		at: #name put: (data at: 'name');
+		at: #transcription
+		put:
+			(((data at: 'captions') detect: [ :e | (e at: 'language') = 'eng' ]) 
+				 at: 'text');
+		yourself
+]
+
+{ #category : #'as yet unclassified' }
+VideoDownloader >> getPlayListsEntriesFrom: entries [
+
+	| m3u8 m3u8Grouped urls |
+	m3u8 := entries select: [ :e | 
+		        ((e at: 'request') at: 'url') endsWith: '.m3u8' ].
+	m3u8Grouped := m3u8 groupedBy: [ :e | (e at: 'request') at: 'url' ].
+	^ (m3u8Grouped collect: [ :e | (e anyOne at: 'request') at: 'url' ])
+		  values
+]
+
+{ #category : #'as yet unclassified' }
+VideoDownloader >> inputFile: aFileReference [
+
+	inputFile := aFileReference
+]
+
+{ #category : #'as yet unclassified' }
+VideoDownloader >> outputFile: aFileReference [
+
+	outputFile := aFileReference
 ]
 
 { #category : #running }
